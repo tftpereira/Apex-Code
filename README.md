@@ -28,25 +28,11 @@ A curated set of Apex utilities, patterns, and productivity tools for Salesforce
 
 ## Key Features
 
-- **Mocking Framework** - DX-first mocking with `when/thenReturn/thenThrow/thenAnswer` syntax and essential matchers. Built on Salesforce's Stub API for reliable test isolation.
+- **Mocking Framework** - DX-first mocking with `when/thenReturn/thenThrow/thenAnswer` syntax and essential matchers. Built on Salesforce's Stub API for reliable test isolation. See [Mock Framework README](Mock%20Framework/README.md) for details.
 
-- **UoW Helpers** - Thin wrappers for batched DML operations with automatic error aggregation. Simplifies transaction management without heavyweight frameworks.
+- **UnitOfWork** - Standalone implementation of the Unit of Work pattern for batched DML operations, relationship resolution, Platform Events, and generic work execution. Simplifies transaction management without heavyweight frameworks. See [UnitOfWork README](UnitOfWork/README.md) for details.
 
-- **SOQL Builders** - Safe query builder with bind-style variables and field allowlists. Prevents SOQL injection while maintaining query flexibility.
-
-- **Selector/Service Scaffolds** - fflib-style base classes and interfaces for consistent data access and business logic patterns. Promotes separation of concerns.
-
-- **Validation and Guard Utils** - Fluent validation checks with contextual error messages. Reduces boilerplate in validation logic and improves error handling.
-
-- **SObject Test Data Factory** - Deterministic test data creation with relationship support and anonymization helpers. Enables fast, isolated unit tests.
-
-- **Retry & Circuit-Breaker** - Governor-aware retry policies and simple circuit breaker pattern. Handles transient failures gracefully within Salesforce limits.
-
-- **Platform Event Test Helpers** - Publish/subscribe stubs for unit testing Platform Events. Enables test-driven development for event-driven architectures.
-
-- **JSON & Type Utils** - Safe JSON parse/serialize utilities, deep copy operations, and lightweight Option/Either types. Reduces null pointer exceptions and improves type safety.
-
-- **Logging & Telemetry** - Pluggable logging interface with no-op default implementation. Supports debug traces and can be extended with custom adapters.
+- **Cache** - In-memory caching system for selector results, reducing database queries and improving transaction performance. Supports superset lookups and advanced filtering. See [Cache README](Cache/README.md) for details.
 
 All modules are independent and can be adopted à la carte. Mix and match based on your project needs.
 
@@ -111,98 +97,59 @@ Use your preferred IDE (VS Code with Salesforce Extensions, Illuminated Cloud, e
 
 ```apex
 // Create a mock
-IMyService mockService = (IMyService) Test.createStub(
-    IMyService.class, 
-    new MockService()
-);
+IMyService mockService = (IMyService) MockService.createMock(IMyService.class);
 
 // Configure behavior
-when(mockService.sum(eq(2), eq(3))).thenReturn(5);
-when(mockService.process(anyString())).thenThrow(new CustomException('Error'));
+when(mockService).method('sum', eq(2), eq(3)).thenReturn(5);
+when(mockService).method('process', anyString()).thenThrow(new CustomException('Error'));
 
 // Use in test
 Integer result = mockService.sum(2, 3);
 System.assertEquals(5, result);
 
 // Verify interactions
-verify(mockService).sum(eq(2), eq(3)).times(1);
+verify(mockService).method('sum', eq(2), eq(3)).times(1);
 ```
 
-### UoW Helpers
+See [Mock Framework README](Mock%20Framework/README.md) for complete documentation.
+
+### UnitOfWork
 
 ```apex
-UnitOfWork uow = new UnitOfWork();
+// Get UnitOfWork instance
+IUnitOfWork uow = Application.unitOfWork.newInstance();
 
 // Register operations
-uow.registerNew(new Account(Name = 'Acme Corp'));
-uow.registerUpdate(existingContact);
-uow.registerDelete(oldRecord);
+Account acc = new Account(Name = 'Acme Corp');
+uow.registerNew(acc);
 
-// Commit with error aggregation
-UoWResult result = uow.commit();
-if (!result.isSuccess()) {
-    for (UoWError error : result.getErrors()) {
-        System.debug('Error: ' + error.getMessage());
+Contact con = new Contact(LastName = 'Doe');
+uow.registerNew(con, Contact.AccountId, acc);  // Automatic relationship
+
+// Commit all operations in a transaction
+uow.commitWork();
+```
+
+See [UnitOfWork README](UnitOfWork/README.md) for complete documentation.
+
+### Cache
+
+```apex
+// In your selector
+public List<Account> selectByIds(Set<Id> accountIds) {
+    String cacheKey = SelectorCache.generateCacheKey('AccountSelector', 'selectByIds', accountIds);
+    
+    if (SelectorCache.containsKey(cacheKey)) {
+        return (List<Account>) SelectorCache.get(cacheKey);
     }
+
+    List<Account> results = [SELECT Id, Name FROM Account WHERE Id IN :accountIds];
+    SelectorCache.put(cacheKey, results);
+    return results;
 }
 ```
 
-### Selector Pattern
-
-```apex
-// In your selector class
-public class AccountSelector extends SelectorBase {
-    public List<Account> selectByIds(Set<Id> accountIds) {
-        return (List<Account>) selectSObjectsById(accountIds);
-    }
-}
-
-// Usage
-AccountSelector selector = new AccountSelector();
-List<Account> accounts = selector.selectByIds(new Set<Id>{'001...'});
-```
-
-### Retry
-
-```apex
-RetryResult result = Retry.run(
-    maxAttempts = 3,
-    backoffMs = 50,
-    operation = () -> {
-        HttpRequest req = new HttpRequest();
-        // ... configure request
-        return http.send(req);
-    }
-);
-
-if (result.isSuccess()) {
-    HttpResponse response = (HttpResponse) result.getResult();
-} else {
-    System.debug('Failed after retries: ' + result.getError());
-}
-```
-
-### Test Data Factory
-
-```apex
-// Create accounts with related contacts
-List<Account> accounts = Accounts
-    .withContacts(3)
-    .named('Acme')
-    .buildList(5);
-
-// Create with custom fields
-Account acc = Accounts
-    .withIndustry('Technology')
-    .withBillingCity('San Francisco')
-    .build();
-
-// Create with relationships
-Opportunity opp = Opportunities
-    .forAccount(acc)
-    .withAmount(10000)
-    .build();
-```
+See [Cache README](Cache/README.md) for complete documentation.
 
 ## Architecture and Principles
 
@@ -226,33 +173,19 @@ This repository follows several core design principles:
 
 | Module | Purpose | Namespace Impact | Status | Documentation |
 |--------|---------|------------------|--------|---------------|
-| Mocking Framework | Test isolation via Stub API | None | Stable | [docs/mocking.md](docs/mocking.md) |
-| UoW Helpers | Batched DML with error handling | None | Stable | [docs/uow.md](docs/uow.md) |
-| SOQL Builders | Safe query construction | None | Stable | [docs/soql-builders.md](docs/soql-builders.md) |
-| Selector/Service Scaffolds | Base classes for data/business layers | Optional | Stable | [docs/selector-service.md](docs/selector-service.md) |
-| Validation and Guard Utils | Fluent validation checks | None | Stable | [docs/validation.md](docs/validation.md) |
-| SObject Test Data Factory | Deterministic test data creation | None | Stable | [docs/test-factory.md](docs/test-factory.md) |
-| Retry & Circuit-Breaker | Governor-aware retry policies | None | Stable | [docs/retry.md](docs/retry.md) |
-| Platform Event Test Helpers | Event publish/subscribe stubs | None | Stable | [docs/platform-events.md](docs/platform-events.md) |
-| JSON & Type Utils | Safe JSON and type operations | None | Stable | [docs/json-types.md](docs/json-types.md) |
-| Logging & Telemetry | Pluggable logging interface | None | Stable | [docs/logging.md](docs/logging.md) |
+| [Mock Framework](Mock%20Framework/) | Test isolation via Stub API with fluent `when/thenReturn` syntax | None | Stable | [Mock Framework README](Mock%20Framework/README.md) |
+| [UnitOfWork](UnitOfWork/) | Batched DML operations, relationship resolution, Platform Events | None | Stable | [UnitOfWork README](UnitOfWork/README.md) |
+| [Cache](Cache/) | In-memory caching for selector results with superset support | None | Stable | [Cache README](Cache/README.md) |
 
 ## Documentation
 
-Module-specific documentation is available in the `docs/` directory:
+Module-specific documentation is available in each module's directory:
 
-- `docs/mocking.md` - Mocking framework usage and matchers
-- `docs/uow.md` - Unit of Work pattern and error handling
-- `docs/soql-builders.md` - Query builder API and security
-- `docs/selector-service.md` - Selector and Service base classes
-- `docs/validation.md` - Validation utilities and guard clauses
-- `docs/test-factory.md` - Test data factory patterns
-- `docs/retry.md` - Retry policies and circuit breaker
-- `docs/platform-events.md` - Platform Event testing
-- `docs/json-types.md` - JSON utilities and type helpers
-- `docs/logging.md` - Logging interface and adapters
+- **[Mock Framework](Mock%20Framework/README.md)** - Mocking framework usage, matchers, and verification
+- **[UnitOfWork](UnitOfWork/README.md)** - Unit of Work pattern, DML operations, and Platform Events
+- **[Cache](Cache/README.md)** - Selector caching, superset lookups, and cache management
 
-Each documentation file includes:
+Each README includes:
 - Overview and use cases
 - API reference
 - Code examples
@@ -369,11 +302,9 @@ This project follows [Semantic Versioning](https://semver.org/):
 Upcoming enhancements and features:
 
 - **Unlocked Package**: Official unlocked package for easy installation
-- **Telemetry Adapters**: Additional adapters for logging (Splunk, DataDog, etc.)
 - **Additional Matchers**: More matcher types for the mocking framework (regex, custom predicates)
-- **Async Utilities**: Helpers for Queueable, Batchable, and Schedulable patterns
-- **SOQL Pagination Helpers**: Utilities for handling large result sets with pagination
-- **Enhanced Test Factory**: More relationship builders and bulk creation optimizations
+- **Cache Enhancements**: TTL support, cache size limits, and eviction policies
+- **UnitOfWork Enhancements**: Additional hooks, batch size configuration, and performance optimizations
 - **Documentation Site**: Hosted documentation with interactive examples
 
 ## FAQ
@@ -384,7 +315,7 @@ While Salesforce provides the Stub API, it requires boilerplate code. This frame
 
 ### How do I use this without fflib?
 
-All modules are independent. You can use the Selector/Service scaffolds as a starting point, or implement your own patterns using the utilities (SOQL builders, UoW helpers) without adopting the full fflib architecture.
+All modules are independent. The UnitOfWork module is inspired by fflib patterns but is a standalone implementation. You can use it independently or alongside other frameworks.
 
 ### Does this work in managed packages?
 
@@ -396,15 +327,21 @@ The Stub API has a limit of 10 stubs per test method. For complex scenarios, con
 
 ### How do utilities handle governor limits?
 
-Utilities are governor-aware and provide mechanisms to work within limits. For example, the UoW helpers batch DML operations, and the retry utilities respect callout limits. Always monitor your usage in production.
+Utilities are governor-aware and provide mechanisms to work within limits. For example, the UnitOfWork batches DML operations to minimize DML statements, and the Cache reduces SOQL queries within a transaction. Always monitor your usage in production.
 
 ### Can I use individual modules without the rest?
 
-Absolutely. Each module is independent. Copy only the classes you need, or use the entire repository. The architecture supports à la carte adoption.
+Absolutely. Each module is independent. You can use:
+- Only the Mock Framework for testing
+- Only the UnitOfWork for DML management
+- Only the Cache for selector optimization
+- Or any combination that fits your needs
+
+Copy only the classes you need, or use the entire repository. The architecture supports à la carte adoption.
 
 ### What's the performance impact?
 
-Utilities are designed to be lightweight with minimal overhead. The mocking framework adds negligible performance cost in tests. Production utilities (like retry policies) are optimized for minimal CPU time.
+Utilities are designed to be lightweight with minimal overhead. The mocking framework adds negligible performance cost in tests. The Cache module reduces database queries, and the UnitOfWork optimizes DML operations by batching them efficiently.
 
 ## License
 
@@ -414,8 +351,9 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 This repository draws inspiration from several community patterns and projects:
 
-- **fflib-apex-common**: Selector and Service layer patterns
+- **fflib-apex-common**: Unit of Work and Selector patterns (UnitOfWork module is inspired by but independent from fflib)
 - **Apex Stub API**: Foundation for the mocking framework
+- **Mockito**: API design inspiration for the mocking framework
 - **Salesforce Community**: Various utility patterns shared by the community
 
 Special thanks to the Salesforce developer community for sharing patterns, best practices, and feedback that shaped these utilities.
