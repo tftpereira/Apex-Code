@@ -1,62 +1,62 @@
 # Mock Framework
 
-Framework de mocking para testes Apex baseado na Stub API do Salesforce. Fornece uma API fluente e intuitiva (`when/thenReturn/thenThrow/verify`) para criar mocks e verificar interações em testes unitários.
+Mocking framework for Apex tests based on Salesforce's Stub API. Provides a fluent and intuitive API (`when/thenReturn/thenThrow/verify`) for creating mocks and verifying interactions in unit tests.
 
-## Visão Geral
+## Overview
 
-O Mock Framework simplifica a criação de mocks e stubs para interfaces Apex, permitindo isolar unidades de código durante testes. A API é inspirada em frameworks populares como Mockito, mas adaptada para as limitações e capacidades da plataforma Salesforce.
+The Mock Framework simplifies the creation of mocks and stubs for Apex interfaces, allowing code units to be isolated during testing. The API is inspired by popular frameworks like Mockito, but adapted for the limitations and capabilities of the Salesforce platform.
 
-### Características Principais
+### Key Features
 
-- **API Fluente**: Sintaxe intuitiva `when().method().thenReturn()`
-- **Matchers Flexíveis**: Suporte a matchers como `any()`, `eq()`, `isNull()`, etc.
-- **Verificação de Interações**: Verifique quantas vezes um método foi chamado
-- **Stubbing Avançado**: Suporte a `thenReturn`, `thenThrow`, e `thenAnswer`
-- **Baseado em Stub API**: Utiliza a API nativa do Salesforce para máxima compatibilidade
+- **Fluent API**: Intuitive `when().method().thenReturn()` syntax
+- **Flexible Matchers**: Support for matchers like `any()`, `eq()`, `isNull()`, etc.
+- **Interaction Verification**: Verify how many times a method was called
+- **Advanced Stubbing**: Support for `thenReturn`, `thenThrow`, and `thenAnswer`
+- **Stub API Based**: Uses Salesforce's native API for maximum compatibility
 
-## Componentes Principais
+## Main Components
 
-- **MockService**: Ponto de entrada para criar mocks
-- **When**: Inicia o processo de stubbing
-- **StubbingBuilder**: Configura o comportamento do mock
-- **Verify**: Verifica interações com o mock
-- **Matchers**: Utilitários para matching de argumentos
+- **MockService**: Entry point for creating mocks
+- **When**: Initiates the stubbing process
+- **StubbingBuilder**: Configures mock behavior
+- **Verify**: Verifies interactions with the mock
+- **Matchers**: Utilities for argument matching
 
-## Uso Básico
+## Basic Usage
 
-### Criar um Mock
+### Creating a Mock
 
 ```apex
 @isTest
 private class MyServiceTest {
     @isTest
     static void testWithMock() {
-        // Criar um mock de uma interface
+        // Create a mock of an interface
         IMyService mockService = (IMyService) MockService.createMock(IMyService.class);
         
-        // Configurar comportamento
+        // Configure behavior
         when(mockService).method('calculate', eq(5), eq(10)).thenReturn(15);
         
-        // Usar o mock
+        // Use the mock
         Integer result = mockService.calculate(5, 10);
         System.assertEquals(15, result);
         
-        // Verificar interação
+        // Verify interaction
         verify(mockService).method('calculate', eq(5), eq(10)).times(1);
     }
 }
 ```
 
-### Stubbing com Diferentes Comportamentos
+### Stubbing with Different Behaviors
 
 ```apex
-// Retornar um valor
+// Return a value
 when(mockService).method('getName').thenReturn('Test Name');
 
-// Lançar uma exceção
+// Throw an exception
 when(mockService).method('process', anyString()).thenThrow(new CustomException('Error'));
 
-// Executar código customizado
+// Execute custom code
 when(mockService).method('transform', anyString()).thenAnswer(new Answer() {
     public Object answer(InvocationContext ctx) {
         String input = (String) ctx.getArgument(0);
@@ -67,69 +67,69 @@ when(mockService).method('transform', anyString()).thenAnswer(new Answer() {
 
 ## Matchers
 
-### Matchers Disponíveis
+### Available Matchers
 
 ```apex
-// Qualquer valor do tipo
+// Any value of the type
 anyString()
 anyInteger()
 anyBoolean()
 anyId()
-any(Type.class)  // Para tipos customizados
+any(Type.class)  // For custom types
 
-// Igualdade
-eq(value)        // Valor exato
-isNull()         // Valor null
-isNotNull()      // Valor não-null
+// Equality
+eq(value)        // Exact value
+isNull()         // Null value
+isNotNull()      // Non-null value
 
 // Strings
 contains(substring)
 startsWith(prefix)
 endsWith(suffix)
-matches(pattern)  // Regex (se suportado)
+matches(pattern)  // Regex (if supported)
 ```
 
-### Exemplos de Uso de Matchers
+### Matcher Usage Examples
 
 ```apex
-// Aceitar qualquer string
+// Accept any string
 when(mockService).method('process', anyString()).thenReturn(true);
 
-// Aceitar qualquer ID
+// Accept any ID
 when(mockService).method('findById', anyId()).thenReturn(new Account());
 
-// Aceitar valor específico
+// Accept specific value
 when(mockService).method('calculate', eq(10), eq(20)).thenReturn(30);
 
-// Aceitar null
+// Accept null
 when(mockService).method('handle', isNull()).thenReturn('null-handled');
 
-// Combinar matchers e valores literais
+// Combine matchers and literal values
 when(mockService).method('update', any(Account.class), eq('Active')).thenReturn(true);
 ```
 
-## Verificação de Interações
+## Interaction Verification
 
-### Verificar Chamadas
+### Verifying Calls
 
 ```apex
-// Verificar que foi chamado pelo menos uma vez
+// Verify it was called at least once
 verify(mockService).method('process', anyString());
 
-// Verificar número exato de chamadas
+// Verify exact number of calls
 verify(mockService).method('calculate', eq(5), eq(10)).times(2);
 
-// Verificar que nunca foi chamado
+// Verify it was never called
 verify(mockService).method('delete', anyId()).never();
 
-// Verificar que foi chamado pelo menos N vezes
+// Verify it was called at least N times
 verify(mockService).method('update', any(Account.class)).atLeast(1);
 
-// Verificar que foi chamado no máximo N vezes
+// Verify it was called at most N times
 verify(mockService).method('send', anyString()).atMost(3);
 ```
 
-### Exemplo Completo de Verificação
+### Complete Verification Example
 
 ```apex
 @isTest
@@ -137,22 +137,22 @@ static void testServiceInteraction() {
     IMyService mockService = (IMyService) MockService.createMock(IMyService.class);
     MyController controller = new MyController(mockService);
     
-    // Executar ação
+    // Execute action
     controller.processAccount('001xx000003DGbQAAW');
     
-    // Verificar interações
+    // Verify interactions
     verify(mockService).method('findById', eq('001xx000003DGbQAAW')).times(1);
     verify(mockService).method('update', any(Account.class)).times(1);
     verify(mockService).method('sendEmail', anyString()).never();
 }
 ```
 
-## Stubbing Avançado
+## Advanced Stubbing
 
-### Múltiplos Retornos (Sequência)
+### Multiple Returns (Sequence)
 
 ```apex
-// Retornar valores diferentes em chamadas consecutivas
+// Return different values on consecutive calls
 when(mockService).method('getNext').thenReturn(1).thenReturn(2).thenReturn(3);
 
 Integer first = mockService.getNext();   // 1
@@ -160,7 +160,7 @@ Integer second = mockService.getNext();  // 2
 Integer third = mockService.getNext();   // 3
 ```
 
-### Respostas Customizadas com thenAnswer
+### Custom Responses with thenAnswer
 
 ```apex
 when(mockService).method('transform', anyString()).thenAnswer(new Answer() {
@@ -168,7 +168,7 @@ when(mockService).method('transform', anyString()).thenAnswer(new Answer() {
         String input = (String) ctx.getArgument(0);
         List<String> args = ctx.getArguments();
         
-        // Lógica customizada
+        // Custom logic
         if (input.startsWith('A')) {
             return input.toUpperCase();
         }
@@ -177,7 +177,7 @@ when(mockService).method('transform', anyString()).thenAnswer(new Answer() {
 });
 ```
 
-### Acessar Argumentos no thenAnswer
+### Accessing Arguments in thenAnswer
 
 ```apex
 when(mockService).method('process', anyString(), anyInteger()).thenAnswer(new Answer() {
@@ -185,37 +185,37 @@ when(mockService).method('process', anyString(), anyInteger()).thenAnswer(new An
         String name = (String) ctx.getArgument(0);
         Integer count = (Integer) ctx.getArgument(1);
         
-        // Usar os argumentos para lógica customizada
+        // Use arguments for custom logic
         return name + '-' + count;
     }
 });
 ```
 
-## Padrões de Uso
+## Usage Patterns
 
-### Teste de Serviço com Dependências
+### Testing Service with Dependencies
 
 ```apex
 @isTest
 private class AccountServiceTest {
     @isTest
     static void testCreateAccountWithValidation() {
-        // Criar mocks das dependências
+        // Create mocks of dependencies
         IValidator mockValidator = (IValidator) MockService.createMock(IValidator.class);
         IRepository mockRepo = (IRepository) MockService.createMock(IRepository.class);
         
-        // Configurar comportamento
+        // Configure behavior
         when(mockValidator).method('validate', any(Account.class)).thenReturn(true);
         when(mockRepo).method('save', any(Account.class)).thenReturn(new Account(Id = '001xx000003DGbQAAW'));
         
-        // Criar serviço com mocks injetados
+        // Create service with injected mocks
         AccountService service = new AccountService(mockValidator, mockRepo);
         
-        // Executar
+        // Execute
         Account acc = new Account(Name = 'Test');
         Account result = service.createAccount(acc);
         
-        // Verificar
+        // Verify
         System.assertNotEquals(null, result.Id);
         verify(mockValidator).method('validate', any(Account.class)).times(1);
         verify(mockRepo).method('save', any(Account.class)).times(1);
@@ -223,18 +223,18 @@ private class AccountServiceTest {
 }
 ```
 
-### Teste de Exceções
+### Testing Exceptions
 
 ```apex
 @isTest
 static void testHandlesException() {
     IMyService mockService = (IMyService) MockService.createMock(IMyService.class);
     
-    // Configurar para lançar exceção
+    // Configure to throw exception
     when(mockService).method('process', anyString())
         .thenThrow(new CustomException('Processing failed'));
     
-    // Testar tratamento de exceção
+    // Test exception handling
     try {
         mockService.process('test');
         System.assert(false, 'Should have thrown exception');
@@ -249,7 +249,7 @@ static void testHandlesException() {
 ### MockService
 
 #### `createMock(Type typeToMock)`
-Cria um mock para a interface especificada.
+Creates a mock for the specified interface.
 
 ```apex
 Object mock = MockService.createMock(IMyService.class);
@@ -258,69 +258,68 @@ Object mock = MockService.createMock(IMyService.class);
 ### When
 
 #### `when(Object mock)`
-Inicia o processo de stubbing para um mock.
+Initiates the stubbing process for a mock.
 
 ```apex
 When when = when(mock);
 ```
 
 #### `method(String methodName)`
-Stub para método sem argumentos.
+Stub for method with no arguments.
 
 #### `method(String methodName, Object... args)`
-Stub para método com argumentos (suporta até 4 argumentos ou uma lista).
+Stub for method with arguments (supports up to 4 arguments or a list).
 
 ### StubbingBuilder
 
 #### `thenReturn(Object value)`
-Configura o mock para retornar um valor específico.
+Configures the mock to return a specific value.
 
 #### `thenThrow(Exception exception)`
-Configura o mock para lançar uma exceção.
+Configures the mock to throw an exception.
 
 #### `thenAnswer(Answer answer)`
-Configura o mock para executar código customizado.
+Configures the mock to execute custom code.
 
 ### Verify
 
 #### `verify(Object mock)`
-Inicia a verificação de interações.
+Initiates interaction verification.
 
 #### `times(Integer count)`
-Verifica que o método foi chamado exatamente N vezes.
+Verifies the method was called exactly N times.
 
 #### `never()`
-Verifica que o método nunca foi chamado.
+Verifies the method was never called.
 
 #### `atLeast(Integer count)`
-Verifica que o método foi chamado pelo menos N vezes.
+Verifies the method was called at least N times.
 
 #### `atMost(Integer count)`
-Verifica que o método foi chamado no máximo N vezes.
+Verifies the method was called at most N times.
 
-## Limitações
+## Limitations
 
-1. **Limite de Stubs**: A Stub API do Salesforce permite no máximo 10 stubs por método de teste
-2. **Apenas Interfaces**: Só é possível criar mocks de interfaces, não de classes concretas
-3. **Métodos Estáticos**: Não é possível fazer mock de métodos estáticos
-4. **Tipos Primitivos**: Alguns matchers podem ter limitações com tipos primitivos
+1. **Stub Limit**: Salesforce Stub API allows a maximum of 10 stubs per test method
+2. **Interfaces Only**: Can only create mocks of interfaces, not concrete classes
+3. **Static Methods**: Cannot mock static methods
+4. **Primitive Types**: Some matchers may have limitations with primitive types
 
-## Boas Práticas
+## Best Practices
 
-1. **Use Interfaces**: Projete suas classes para depender de interfaces, facilitando o mocking
-2. **Um Mock por Teste**: Tente limitar o número de mocks por teste para manter os testes simples
-3. **Verifique o Essencial**: Verifique apenas as interações críticas, não todas as chamadas
-4. **Stub o Mínimo Necessário**: Configure apenas o comportamento necessário para o teste
-5. **Nomes Descritivos**: Use nomes claros para mocks e variáveis de teste
+1. **Use Interfaces**: Design your classes to depend on interfaces, making mocking easier
+2. **One Mock per Test**: Try to limit the number of mocks per test to keep tests simple
+3. **Verify Essentials**: Verify only critical interactions, not all calls
+4. **Stub Minimum Necessary**: Configure only the behavior necessary for the test
+5. **Descriptive Names**: Use clear names for mocks and test variables
 
-## Exemplos Adicionais
+## Additional Examples
 
-Veja a classe `MockFrameworkTest.cls` para exemplos completos de uso do framework.
+See the `MockFrameworkTest.cls` class for complete framework usage examples.
 
-## Compatibilidade
+## Compatibility
 
 - **API Version**: 60.0+
-- **Stub API**: Requer Salesforce Stub API (disponível desde API 40.0)
-- **Namespaces**: Funciona em orgs com e sem namespace
-- **Test Context**: Apenas disponível em métodos `@isTest`
-
+- **Stub API**: Requires Salesforce Stub API (available since API 40.0)
+- **Namespaces**: Works in orgs with and without namespace
+- **Test Context**: Only available in `@isTest` methods

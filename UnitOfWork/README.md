@@ -1,160 +1,160 @@
 # UnitOfWork Module
 
-Implementação standalone do padrão Unit of Work para gerenciar operações DML em batch, resolução de relacionamentos, publicação de Platform Events e execução de trabalho genérico dentro de uma transação.
+Standalone implementation of the Unit of Work pattern for managing batched DML operations, relationship resolution, Platform Events publishing, and generic work execution within a transaction.
 
-## Visão Geral
+## Overview
 
-O módulo `UnitOfWork` fornece uma abstração poderosa para gerenciar múltiplas operações DML de forma eficiente e organizada. É inspirado no padrão fflib, mas implementado como uma solução standalone sem dependências externas.
+The `UnitOfWork` module provides a powerful abstraction for managing multiple DML operations efficiently and organized. It's inspired by the fflib pattern, but implemented as a standalone solution without external dependencies.
 
-### Características Principais
+### Key Features
 
-- **DML em Batch**: Agrupa operações DML por tipo de objeto para eficiência
-- **Resolução de Relacionamentos**: Resolve automaticamente relacionamentos entre objetos, incluindo External IDs
-- **Platform Events**: Suporte para publicação de eventos em diferentes fases (antes, após sucesso, após falha)
-- **Estratégias DML Pluggáveis**: Suporte para System Mode e User Mode
-- **Trabalho Genérico**: Interface para executar trabalho customizado após DML
-- **Envio de Emails**: Gerenciamento automático de fila de emails
+- **Batched DML**: Groups DML operations by object type for efficiency
+- **Relationship Resolution**: Automatically resolves relationships between objects, including External IDs
+- **Platform Events**: Support for publishing events at different phases (before, after success, after failure)
+- **Pluggable DML Strategies**: Support for System Mode and User Mode
+- **Generic Work**: Interface for executing custom work after DML
+- **Email Sending**: Automatic email queue management
 
-## Componentes
+## Components
 
-- **UnitOfWork**: Classe principal que implementa o padrão
-- **IUnitOfWork**: Interface pública para abstração
-- **Application**: Factory para criar instâncias configuradas
+- **UnitOfWork**: Main class that implements the pattern
+- **IUnitOfWork**: Public interface for abstraction
+- **Application**: Factory for creating configured instances
 
-## Uso Básico
+## Basic Usage
 
-### Configuração Inicial
+### Initial Configuration
 
-Primeiro, configure os tipos de objetos que serão gerenciados (em ordem de dependência):
+First, configure the object types that will be managed (in dependency order):
 
 ```apex
-// Em Application.cls
+// In Application.cls
 public static final Application.UnitOfWorkFactory unitOfWork =
     new Application.UnitOfWorkFactory(new List<Schema.SObjectType>{
-        QuoteLineItem.SObjectType,  // Menos dependente primeiro
-        Quote.SObjectType            // Mais dependente depois
+        QuoteLineItem.SObjectType,  // Least dependent first
+        Quote.SObjectType            // More dependent later
     });
 ```
 
-### Uso Simples
+### Simple Usage
 
 ```apex
-// Obter instância do UnitOfWork
+// Get UnitOfWork instance
 IUnitOfWork uow = Application.unitOfWork.newInstance();
 
-// Registrar operações
+// Register operations
 Account acc = new Account(Name = 'Acme Corp');
 uow.registerNew(acc);
 
 Contact con = new Contact(LastName = 'Doe');
-uow.registerNew(con, Contact.AccountId, acc);  // Relacionamento automático
+uow.registerNew(con, Contact.AccountId, acc);  // Automatic relationship
 
-// Executar tudo em uma transação
+// Execute everything in a transaction
 uow.commitWork();
 ```
 
-## Operações DML
+## DML Operations
 
-### Registrar Novos Registros
+### Register New Records
 
 ```apex
-// Registro simples
+// Simple registration
 Account acc = new Account(Name = 'Test');
 uow.registerNew(acc);
 
-// Registro em lote
+// Bulk registration
 List<Account> accounts = new List<Account>{
     new Account(Name = 'Account 1'),
     new Account(Name = 'Account 2')
 };
 uow.registerNew(accounts);
 
-// Com relacionamento
+// With relationship
 Contact con = new Contact(LastName = 'Doe');
 uow.registerNew(con, Contact.AccountId, acc);
 ```
 
-### Registrar Atualizações
+### Register Updates
 
 ```apex
-// Atualização simples
+// Simple update
 Account acc = [SELECT Id, Name FROM Account LIMIT 1];
 acc.Name = 'Updated Name';
 uow.registerDirty(acc);
 
-// Atualização em lote
+// Bulk update
 List<Account> accounts = [SELECT Id FROM Account LIMIT 10];
 for (Account a : accounts) {
     a.Name = 'Updated';
 }
 uow.registerDirty(accounts);
 
-// Atualização com campos específicos
+// Update with specific fields
 Account acc = [SELECT Id, Name, BillingCity FROM Account LIMIT 1];
 acc.BillingCity = 'New York';
 uow.registerDirty(acc, new List<Schema.SObjectField>{Account.BillingCity});
 
-// Com relacionamento
+// With relationship
 uow.registerDirty(con, Contact.AccountId, acc);
 ```
 
-### Registrar Exclusões
+### Register Deletions
 
 ```apex
-// Exclusão simples
+// Simple deletion
 Account acc = [SELECT Id FROM Account LIMIT 1];
 uow.registerDeleted(acc);
 
-// Exclusão em lote
+// Bulk deletion
 List<Account> accounts = [SELECT Id FROM Account LIMIT 10];
 uow.registerDeleted(accounts);
 
-// Exclusão permanente (esvazia lixeira)
+// Permanent deletion (empty recycle bin)
 uow.registerPermanentlyDeleted(acc);
 ```
 
 ### Upsert
 
 ```apex
-// Upsert automático (insert se Id null, update se Id existe)
-SObject record = /* seu objeto */;
+// Automatic upsert (insert if Id null, update if Id exists)
+SObject record = /* your object */;
 uow.registerUpsert(record);
 
-List<SObject> records = /* sua lista */;
+List<SObject> records = /* your list */;
 uow.registerUpsert(records);
 ```
 
-## Relacionamentos
+## Relationships
 
-### Relacionamento por SObject
+### Relationship by SObject
 
 ```apex
 Account acc = new Account(Name = 'Parent');
 Contact con = new Contact(LastName = 'Child');
 
-// Relacionar após registro
+// Relate after registration
 uow.registerNew(acc);
 uow.registerNew(con);
 uow.registerRelationship(con, Contact.AccountId, acc);
 ```
 
-### Relacionamento por External ID
+### Relationship by External ID
 
 ```apex
-// Quando você tem um External ID em vez do Id
+// When you have an External ID instead of Id
 Contact con = new Contact(LastName = 'Doe');
 uow.registerNew(con);
 
-// Relacionar usando External ID
+// Relate using External ID
 uow.registerRelationship(
     con, 
-    Contact.AccountId,           // Campo de relacionamento
-    Account.ExternalId__c,      // Campo External ID no Account
-    'EXT-12345'                  // Valor do External ID
+    Contact.AccountId,           // Relationship field
+    Account.ExternalId__c,      // External ID field on Account
+    'EXT-12345'                  // External ID value
 );
 ```
 
-### Relacionamento com Email
+### Relationship with Email
 
 ```apex
 Messaging.SingleEmailMessage email = new Messaging.SingleEmailMessage();
@@ -164,99 +164,99 @@ email.setPlainTextBody('Body');
 Account acc = new Account(Name = 'Test');
 uow.registerNew(acc);
 uow.registerEmail(email);
-uow.registerRelationship(email, acc);  // Define WhatId automaticamente
+uow.registerRelationship(email, acc);  // Sets WhatId automatically
 ```
 
 ## Platform Events
 
-### Publicar Antes da Transação
+### Publish Before Transaction
 
 ```apex
 MyEvent__e event = new MyEvent__e(Data__c = 'Before transaction');
 uow.registerPublishBeforeTransaction(event);
 
-// Eventos serão publicados ANTES de qualquer DML
+// Events will be published BEFORE any DML
 uow.commitWork();
 ```
 
-### Publicar Após Sucesso
+### Publish After Success
 
 ```apex
 MyEvent__e event = new MyEvent__e(Data__c = 'After success');
 uow.registerPublishAfterSuccessTransaction(event);
 
-// Eventos serão publicados APENAS se a transação for bem-sucedida
+// Events will be published ONLY if transaction is successful
 uow.commitWork();
 ```
 
-### Publicar Após Falha
+### Publish After Failure
 
 ```apex
 MyEvent__e event = new MyEvent__e(Data__c = 'After failure');
 uow.registerPublishAfterFailureTransaction(event);
 
-// Eventos serão publicados APENAS se a transação falhar
+// Events will be published ONLY if transaction fails
 uow.commitWork();
 ```
 
-## Trabalho Customizado
+## Custom Work
 
-### Registrar Trabalho Genérico
+### Register Generic Work
 
 ```apex
-// Implementar interface IDoWork
+// Implement IDoWork interface
 public class MyCustomWork implements UnitOfWork.IDoWork {
     public void doWork() {
-        // Seu código customizado aqui
-        System.debug('Executando trabalho customizado');
+        // Your custom code here
+        System.debug('Executing custom work');
     }
 }
 
-// Registrar e executar
+// Register and execute
 uow.registerWork(new MyCustomWork());
-uow.commitWork();  // doWork() será chamado após DML
+uow.commitWork();  // doWork() will be called after DML
 ```
 
-## Estratégias DML
+## DML Strategies
 
-### System Mode (Padrão)
+### System Mode (Default)
 
 ```apex
-// Usa System Mode (ignora permissões de campo/objeto)
+// Uses System Mode (ignores field/object permissions)
 IUnitOfWork uow = Application.unitOfWork.newInstance();
 ```
 
 ### User Mode
 
 ```apex
-// Configurar para usar User Mode
+// Configure to use User Mode
 UnitOfWork.UserModeDML userModeDML = new UnitOfWork.UserModeDML();
 UnitOfWork uow = new UnitOfWork(
     new List<Schema.SObjectType>{Account.SObjectType, Contact.SObjectType},
     userModeDML
 );
 
-// Ou com nível de acesso específico
+// Or with specific access level
 UnitOfWork.UserModeDML customDML = new UnitOfWork.UserModeDML(System.AccessLevel.USER_MODE);
 ```
 
-## Ordem de Execução
+## Execution Order
 
-Quando `commitWork()` é chamado, as operações são executadas nesta ordem:
+When `commitWork()` is called, operations are executed in this order:
 
 1. **Hook**: `onCommitWorkStarting()`
-2. **Publicar Eventos Antes**: `onPublishBeforeEventsStarting()` → Publica eventos → `onPublishBeforeEventsFinished()`
+2. **Publish Before Events**: `onPublishBeforeEventsStarting()` → Publish events → `onPublishBeforeEventsFinished()`
 3. **DML Operations**: `onDMLStarting()` → Insert → Update → Delete → Empty Recycle Bin → Resolve Email Relationships → `onDMLFinished()`
-4. **Trabalho Customizado**: `onDoWorkStarting()` → Executa `IDoWork` → Envia emails → `onDoWorkFinished()`
+4. **Custom Work**: `onDoWorkStarting()` → Execute `IDoWork` → Send emails → `onDoWorkFinished()`
 5. **Hook**: `onCommitWorkFinishing()`
-6. **Após Commit**:
-   - Se sucesso: `onPublishAfterSuccessEventsStarting()` → Publica eventos → `onPublishAfterSuccessEventsFinished()`
-   - Se falha: `onPublishAfterFailureEventsStarting()` → Publica eventos → `onPublishAfterFailureEventsFinished()`
-7. **Hook Final**: `onCommitWorkFinished(Boolean wasSuccessful)`
+6. **After Commit**:
+   - If success: `onPublishAfterSuccessEventsStarting()` → Publish events → `onPublishAfterSuccessEventsFinished()`
+   - If failure: `onPublishAfterFailureEventsStarting()` → Publish events → `onPublishAfterFailureEventsFinished()`
+7. **Final Hook**: `onCommitWorkFinished(Boolean wasSuccessful)`
 
-## Hooks Customizados
+## Custom Hooks
 
-Você pode estender `UnitOfWork` e sobrescrever hooks para adicionar lógica customizada:
+You can extend `UnitOfWork` and override hooks to add custom logic:
 
 ```apex
 public class MyUnitOfWork extends UnitOfWork {
@@ -265,52 +265,52 @@ public class MyUnitOfWork extends UnitOfWork {
     }
     
     public override void onDMLStarting() {
-        System.debug('Iniciando DML operations');
+        System.debug('Starting DML operations');
     }
     
     public override void onDMLFinished() {
-        System.debug('DML operations concluídas');
+        System.debug('DML operations completed');
     }
     
     public override void onCommitWorkFinished(Boolean wasSuccessful) {
         if (wasSuccessful) {
-            System.debug('Transação bem-sucedida');
+            System.debug('Transaction successful');
         } else {
-            System.debug('Transação falhou');
+            System.debug('Transaction failed');
         }
     }
 }
 ```
 
-## Exemplo Completo
+## Complete Example
 
 ```apex
 public class AccountService {
     public void createAccountWithContacts(String accountName, List<String> contactNames) {
         IUnitOfWork uow = Application.unitOfWork.newInstance();
         
-        // Criar Account
+        // Create Account
         Account acc = new Account(Name = accountName);
         uow.registerNew(acc);
         
-        // Criar Contacts relacionados
+        // Create related Contacts
         for (String contactName : contactNames) {
             Contact con = new Contact(LastName = contactName);
             uow.registerNew(con, Contact.AccountId, acc);
         }
         
-        // Publicar evento após sucesso
+        // Publish event after success
         AccountCreated__e event = new AccountCreated__e(AccountName__c = accountName);
         uow.registerPublishAfterSuccessTransaction(event);
         
-        // Enviar email
+        // Send email
         Messaging.SingleEmailMessage email = new Messaging.SingleEmailMessage();
         email.setSubject('Account Created');
         email.setPlainTextBody('Account ' + accountName + ' was created');
         uow.registerEmail(email);
         uow.registerRelationship(email, acc);
         
-        // Executar tudo
+        // Execute everything
         uow.commitWork();
     }
 }
@@ -331,49 +331,48 @@ void registerPublishAfterSuccessTransaction(SObject eventRecord);
 void commitWork();
 ```
 
-### UnitOfWork Class (Métodos Adicionais)
+### UnitOfWork Class (Additional Methods)
 
-- `registerNew(SObject, Schema.SObjectField, SObject)` - Registrar novo com relacionamento
-- `registerDirty(SObject, List<Schema.SObjectField>)` - Atualizar campos específicos
-- `registerDirty(SObject, Schema.SObjectField, SObject)` - Atualizar com relacionamento
-- `registerUpsert(SObject)` - Upsert automático
-- `registerPermanentlyDeleted(SObject)` - Exclusão permanente
-- `registerPublishBeforeTransaction(SObject)` - Evento antes da transação
-- `registerPublishAfterFailureTransaction(SObject)` - Evento após falha
-- `registerWork(IDoWork)` - Trabalho customizado
-- `registerEmail(Messaging.Email)` - Enviar email
-- `registerRelationship(...)` - Vários overloads para relacionamentos
-- `getRegisteredNew(String)` - Acessar registros registrados
-- `getRegisteredDirty(String)` - Acessar registros sujos
-- `getRegisteredDeleted(String)` - Acessar registros deletados
+- `registerNew(SObject, Schema.SObjectField, SObject)` - Register new with relationship
+- `registerDirty(SObject, List<Schema.SObjectField>)` - Update specific fields
+- `registerDirty(SObject, Schema.SObjectField, SObject)` - Update with relationship
+- `registerUpsert(SObject)` - Automatic upsert
+- `registerPermanentlyDeleted(SObject)` - Permanent deletion
+- `registerPublishBeforeTransaction(SObject)` - Event before transaction
+- `registerPublishAfterFailureTransaction(SObject)` - Event after failure
+- `registerWork(IDoWork)` - Custom work
+- `registerEmail(Messaging.Email)` - Send email
+- `registerRelationship(...)` - Various overloads for relationships
+- `getRegisteredNew(String)` - Access registered records
+- `getRegisteredDirty(String)` - Access dirty records
+- `getRegisteredDeleted(String)` - Access deleted records
 
-## Boas Práticas
+## Best Practices
 
-1. **Ordem de Dependência**: Configure os tipos de objetos na ordem correta (menos dependente primeiro)
-2. **Uma Transação**: Use um `UnitOfWork` por transação lógica
-3. **Rollback Automático**: O `commitWork()` usa savepoint e faz rollback automático em caso de erro
-4. **Hooks para Logging**: Use hooks para adicionar logging ou telemetria
-5. **User Mode quando Apropriado**: Use User Mode DML para respeitar permissões em produção
+1. **Dependency Order**: Configure object types in the correct order (least dependent first)
+2. **One Transaction**: Use one `UnitOfWork` per logical transaction
+3. **Automatic Rollback**: `commitWork()` uses savepoint and automatically rolls back on error
+4. **Hooks for Logging**: Use hooks to add logging or telemetry
+5. **User Mode When Appropriate**: Use User Mode DML to respect permissions in production
 
-## Limitações
+## Limitations
 
-- **Limite de DML**: Respeita os limites do Salesforce (150 DML statements por transação)
-- **Tipos de Objetos**: Deve registrar os tipos de objetos no construtor
-- **Platform Events**: Apenas objetos que terminam com `__e`
-- **Relacionamentos**: External IDs devem estar marcados como External ID no schema
+- **DML Limit**: Respects Salesforce limits (150 DML statements per transaction)
+- **Object Types**: Must register object types in constructor
+- **Platform Events**: Only objects ending with `__e`
+- **Relationships**: External IDs must be marked as External ID in schema
 
-## Compatibilidade
+## Compatibility
 
 - **API Version**: 60.0+
-- **Namespaces**: Funciona em orgs com e sem namespace
-- **Platform Events**: Requer objetos Platform Event configurados
-- **External IDs**: Requer campos marcados como External ID
+- **Namespaces**: Works in orgs with and without namespace
+- **Platform Events**: Requires Platform Event objects configured
+- **External IDs**: Requires fields marked as External ID
 
-## Testes
+## Tests
 
-Veja as classes de teste incluídas para exemplos de uso:
+See the included test classes for usage examples:
 - `UnitOfWorkTest.cls`
 - `UnitOfWorkSimpleDMLTest.cls`
 - `UnitOfWorkUserModeDMLTest.cls`
 - `UnitOfWorkEventRegistrationTest.cls`
-

@@ -1,28 +1,28 @@
 # Cache Module
 
-Sistema de cache em memória para otimizar consultas de selectors, reduzindo chamadas ao banco de dados e melhorando o desempenho das transações.
+In-memory caching system to optimize selector queries, reducing database calls and improving transaction performance.
 
-## Visão Geral
+## Overview
 
-O módulo `Cache` fornece uma solução leve e eficiente para cachear resultados de selectors durante uma transação. O cache é automaticamente limpo entre transações, garantindo que os dados não fiquem desatualizados.
+The `Cache` module provides a lightweight and efficient solution for caching selector results during a transaction. The cache is automatically cleared between transactions, ensuring data doesn't become stale.
 
-### Características Principais
+### Key Features
 
-- **Cache por Transação**: Cada transação possui seu próprio cache isolado
-- **Chaves Automáticas**: Geração automática de chaves baseadas em selector, método e parâmetros
-- **Suporte a Superset**: Busca inteligente por caches que contêm supersets dos IDs solicitados
-- **Filtragem Avançada**: Métodos para filtrar resultados por IDs ou múltiplos campos
-- **Limpeza Seletiva**: Limpeza granular do cache (por entrada, método ou selector completo)
+- **Transaction-Based Cache**: Each transaction has its own isolated cache
+- **Automatic Key Generation**: Automatic key generation based on selector, method, and parameters
+- **Superset Support**: Intelligent search for caches that contain supersets of requested IDs
+- **Advanced Filtering**: Methods to filter results by IDs or multiple fields
+- **Selective Cleanup**: Granular cache cleanup (by entry, method, or complete selector)
 
-## Componentes
+## Components
 
 ### SelectorCache
 
-Classe principal que gerencia o cache de resultados de selectors.
+Main class that manages the cache of selector results.
 
-## Uso Básico
+## Basic Usage
 
-### Exemplo 1: Método Simples com Set<Id>
+### Example 1: Simple Method with Set<Id>
 
 ```apex
 public List<Quote> selectByOpportunityIds(Set<Id> opportunityIds) {
@@ -30,28 +30,28 @@ public List<Quote> selectByOpportunityIds(Set<Id> opportunityIds) {
         return new List<Quote>();
     }
 
-    // Gerar chave do cache
+    // Generate cache key
     String cacheKey = SelectorCache.generateCacheKey('QuotesSelector', 'selectByOpportunityIds', opportunityIds);
     
-    // Verificar se existe no cache
+    // Check if exists in cache
     if (SelectorCache.containsKey(cacheKey)) {
         return (List<Quote>) SelectorCache.get(cacheKey);
     }
 
-    // Executar query
+    // Execute query
     List<Quote> results = [
         SELECT Id, OpportunityId 
         FROM Quote 
         WHERE OpportunityId IN :opportunityIds
     ];
     
-    // Armazenar no cache e retornar
+    // Store in cache and return
     SelectorCache.put(cacheKey, results);
     return results;
 }
 ```
 
-### Exemplo 2: Método com Múltiplos Parâmetros
+### Example 2: Method with Multiple Parameters
 
 ```apex
 public List<Quote> selectByOpportunityIdsAndRecordType(Set<Id> opportunityIds, Id recordTypeId, Set<Id> excludeIds) {
@@ -59,7 +59,7 @@ public List<Quote> selectByOpportunityIdsAndRecordType(Set<Id> opportunityIds, I
         return new List<Quote>();
     }
 
-    // Criar um Map com todos os parâmetros
+    // Create a Map with all parameters
     Map<String, Object> params = new Map<String, Object>{
         'opportunityIds' => opportunityIds,
         'recordTypeId' => recordTypeId,
@@ -72,19 +72,19 @@ public List<Quote> selectByOpportunityIdsAndRecordType(Set<Id> opportunityIds, I
         return (List<Quote>) SelectorCache.get(cacheKey);
     }
 
-    // Executar query...
-    List<Quote> results = [/* sua query aqui */];
+    // Execute query...
+    List<Quote> results = [/* your query here */];
     
     SelectorCache.put(cacheKey, results);
     return results;
 }
 ```
 
-### Exemplo 3: Geração Automática de Chave
+### Example 3: Automatic Key Generation
 
 ```apex
 public List<Account> selectByIds(Set<Id> accountIds) {
-    // Usando 'this' para detectar automaticamente o nome da classe
+    // Using 'this' to automatically detect the class name
     String cacheKey = SelectorCache.generateCacheKey(this, 'selectByIds', accountIds);
     
     if (SelectorCache.containsKey(cacheKey)) {
@@ -97,26 +97,26 @@ public List<Account> selectByIds(Set<Id> accountIds) {
 }
 ```
 
-## Funcionalidades Avançadas
+## Advanced Features
 
-### Busca por Superset
+### Superset Lookup
 
-Quando você solicita um conjunto de IDs, o cache pode verificar se já existe um cache que contém todos esses IDs (e possivelmente mais):
+When you request a set of IDs, the cache can check if there's already a cache that contains all those IDs (and possibly more):
 
 ```apex
-// Verificar se existe um cache que contém todos os IDs solicitados
+// Check if there's a cache that contains all requested IDs
 String supersetKey = SelectorCache.findSupersetCacheKey('QuotesSelector', 'selectByOpportunityIds', requestedIds);
 
 if (supersetKey != null) {
     List<Quote> cachedResults = (List<Quote>) SelectorCache.get(supersetKey);
-    // Filtrar para retornar apenas os IDs solicitados
+    // Filter to return only requested IDs
     return SelectorCache.filterResultsByIds(cachedResults, requestedIds, 'OpportunityId');
 }
 ```
 
-### Filtragem por Múltiplos Campos
+### Filtering by Multiple Fields
 
-Para queries complexas com condições OR:
+For complex queries with OR conditions:
 
 ```apex
 List<String> idFieldNames = new List<String>{
@@ -131,117 +131,116 @@ List<SObject> filtered = SelectorCache.filterResultsByMultipleIdFields(
 );
 ```
 
-## Gerenciamento do Cache
+## Cache Management
 
-### Limpar Entrada Específica
+### Clear Specific Entry
 
 ```apex
 Set<Id> quoteIds = new Set<Id>{'001xx000003DGbQAAW'};
 SelectorCache.removeCacheEntry('QuotesSelector', 'selectByOpportunityIds', quoteIds);
 ```
 
-### Limpar Cache de um Método
+### Clear Method Cache
 
 ```apex
 SelectorCache.clearMethodCache('QuotesSelector', 'selectByOpportunityIds');
 ```
 
-### Limpar Cache de um Selector Completo
+### Clear Complete Selector Cache
 
 ```apex
 SelectorCache.clearSelectorCache('QuotesSelector');
 ```
 
-### Limpar Todo o Cache
+### Clear All Cache
 
 ```apex
 SelectorCache.clear();
 ```
 
-### Resetar Transação
+### Reset Transaction
 
 ```apex
-// Útil em testes para garantir isolamento
+// Useful in tests to ensure isolation
 SelectorCache.resetTransaction();
 ```
 
 ## API Reference
 
-### Métodos Estáticos Principais
+### Main Static Methods
 
 #### `generateCacheKey(String selectorName, String methodName, Object params)`
-Gera uma chave única de cache baseada no selector, método e parâmetros.
+Generates a unique cache key based on selector, method, and parameters.
 
 #### `generateCacheKey(Object selectorInstance, String methodName, Object params)`
-Gera chave automaticamente detectando o nome da classe do selector.
+Generates key automatically detecting the selector class name.
 
 #### `generateCacheKey(Object selectorInstance, Object params)`
-Gera chave detectando automaticamente classe e método (via stack trace).
+Generates key automatically detecting class and method (via stack trace).
 
 #### `get(String cacheKey)`
-Retorna o valor armazenado no cache ou `null` se não existir.
+Returns the value stored in cache or `null` if it doesn't exist.
 
 #### `put(String cacheKey, Object value)`
-Armazena um valor no cache.
+Stores a value in the cache.
 
 #### `containsKey(String cacheKey)`
-Verifica se uma chave existe no cache.
+Checks if a key exists in the cache.
 
 #### `findSupersetCacheKey(String selectorName, String methodName, Set<Id> requestedIds)`
-Busca um cache que contenha um superset dos IDs solicitados.
+Searches for a cache that contains a superset of the requested IDs.
 
 #### `filterResultsByIds(List<SObject> results, Set<Id> requestedIds, String idFieldName)`
-Filtra resultados para incluir apenas os objetos com IDs correspondentes.
+Filters results to include only objects with matching IDs.
 
 #### `filterResultsByMultipleIdFields(List<SObject> results, Set<Id> requestedIds, List<String> idFieldNames)`
-Filtra resultados verificando múltiplos campos (suporta relacionamentos).
+Filters results by checking multiple fields (supports relationships).
 
 #### `remove(String cacheKey)`
-Remove uma entrada específica do cache.
+Removes a specific entry from the cache.
 
 #### `clear()`
-Limpa todo o cache e reseta a transação.
+Clears all cache and resets the transaction.
 
 #### `clearSelectorCache(String selectorName)`
-Limpa todo o cache de um selector específico.
+Clears all cache for a specific selector.
 
 #### `clearMethodCache(String selectorName, String methodName)`
-Limpa o cache de um método específico de um selector.
+Clears the cache for a specific method of a selector.
 
 #### `removeCacheEntry(String selectorName, String methodName, Object params)`
-Remove uma entrada específica do cache baseada em selector, método e parâmetros.
+Removes a specific cache entry based on selector, method, and parameters.
 
-## Tipos de Parâmetros Suportados
+## Supported Parameter Types
 
-O `SelectorCache` suporta os seguintes tipos de parâmetros:
+The `SelectorCache` supports the following parameter types:
 
-- `Set<Id>` - Ordenado automaticamente para garantir consistência
-- `Set<String>` - Ordenado automaticamente
-- `Map<String, Object>` - Chaves ordenadas alfabeticamente
-- `List<Object>` - Serializado como JSON
-- Tipos primitivos - Convertidos para String
+- `Set<Id>` - Automatically sorted to ensure consistency
+- `Set<String>` - Automatically sorted
+- `Map<String, Object>` - Keys sorted alphabetically
+- `List<Object>` - Serialized as JSON
+- Primitive types - Converted to String
 
-## Boas Práticas
+## Best Practices
 
-1. **Sempre valide parâmetros** antes de gerar a chave do cache
-2. **Use cache para queries frequentes** que são chamadas múltiplas vezes na mesma transação
-3. **Limpe o cache quando necessário** após operações DML que afetam os dados
-4. **Use superset quando apropriado** para reduzir queries redundantes
-5. **Evite cachear queries muito grandes** que podem consumir muita memória
+1. **Always validate parameters** before generating the cache key
+2. **Use cache for frequent queries** that are called multiple times in the same transaction
+3. **Clear cache when necessary** after DML operations that affect the data
+4. **Use superset when appropriate** to reduce redundant queries
+5. **Avoid caching very large queries** that may consume too much memory
 
-## Limitações
+## Limitations
 
-- O cache é **por transação** e é limpo automaticamente entre transações
-- O cache é armazenado em memória estática, então não persiste entre diferentes contextos de execução
-- Para queries muito grandes, considere paginação em vez de cachear tudo
+- The cache is **per transaction** and is automatically cleared between transactions
+- The cache is stored in static memory, so it doesn't persist between different execution contexts
+- For very large queries, consider pagination instead of caching everything
 
-## Exemplos Completos
+## Complete Examples
 
-Veja a classe `SelectorCacheExample.cls` para exemplos detalhados de implementação.
+See the `SelectorCacheExample.cls` class for detailed implementation examples.
 
-## Compatibilidade
+## Compatibility
 
 - **API Version**: 60.0+
-- **Namespaces**: Funciona em orgs com e sem namespace
-- **Governor Limits**: Não consome limites adicionais além do uso de memória
-
+- **Namespaces**: Works in orgs with and without namespace
+- **Governor Limits**: Doesn't consume additional limits beyond memory usage
